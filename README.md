@@ -18,7 +18,7 @@ Sử dụng Docker giúp bạn **tránh các vấn đề về hệ điều hành
 ### 🔹 Các bước cài đặt
 1. **Clone repository**:
    ```bash
-   git clone <repo_url>
+   git clone https://github.com/thinhle96/esbmc.git
    ```
 2. **Chạy Docker Compose**:
    ```bash
