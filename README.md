@@ -6,7 +6,7 @@ Sử dụng Docker giúp bạn **tránh các vấn đề về hệ điều hành
 ---
 
 ## 👍 Hướng dẫn cài đặt
-
+Để có thể sử dụng sẵn code trong thư mục /workspace/esbmc, cần bỏ option volumes trong docker compose, nhưng code sẽ không được lưu sau khi container down.
 ### 🔹 Yêu cầu
 - **Phần mềm**: Docker, Docker Desktop
 - **IDE**: Visual Studio Code
@@ -15,7 +15,7 @@ Sử dụng Docker giúp bạn **tránh các vấn đề về hệ điều hành
   - Dev Containers
   - Docker
 
-### 🔹 Các bước cài đặt
+### 🔹 Các bước truy cập dev container
 1. **Clone repository**:
    ```bash
    git clone https://github.com/thinhle96/esbmc.git
@@ -43,8 +43,21 @@ Sử dụng Docker giúp bạn **tránh các vấn đề về hệ điều hành
    esbmc sample.c --k-induction
    ```
 
----
-
+## ▶️ Hướng dẫn debug ESBMC
+1. **Tạo folder debug**:
+   ```bash
+   cd /workspace
+   git clone https://github.com/esbmc/esbmc.git
+   mkdir debug && cd debug
+   cmake .. -DENABLE_Z3=1 -DCMAKE_BUILD_TYPE=Debug
+   make -j$(nproc)
+   ```
+2. **Tạo debug launch.json**:
+   Open folder: File -> Open folder: /workspace/esbmc
+   Create file launch.json: Ctrl + Shift + D -> Create launch.json -> Overwrite nội dung file launch.json
+3. **Chạy debug**
+   Chọn file : ví dụ /workspace/esbmc/src/esbmc/main.cpp
+   Thêm breakpoint và ấn fn + F5
 ## ⚠️ Lưu ý
 - **Thư mục `/workspace` đã chứa thư mục code**: `esbmc-demo`.
 - **Nên viết code trong thư mục `/workspace`** để tránh mất dữ liệu khi container bị xóa, vì thư mục này đã được mount với Docker Volumes.
@@ -53,13 +66,13 @@ Sử dụng Docker giúp bạn **tránh các vấn đề về hệ điều hành
 
 # 🚀 Docker Image - ESBMC 7.8.1 on Ubuntu 24.04
 
-This is a **Docker image** with **ESBMC version 7.8.1** installed on **Ubuntu 24.04**.
-Using Docker **eliminates concerns** about OS compatibility and library dependencies, ensuring a consistent development environment.
+📝 This is a **Docker image** with **ESBMC version 7.8.1** pre-installed on **Ubuntu 24.04**.
+Using Docker helps you **avoid OS compatibility issues and library installation problems**, ensuring a consistent development environment.
 
 ---
 
 ## 👍 Installation Guide
-
+You can use the existing code inside /workspace/esbmc. The volumes option in Docker Compose has been removed, meaning code changes will not be saved after the container is stopped.
 ### 🔹 Requirements
 - **Software**: Docker, Docker Desktop
 - **IDE**: Visual Studio Code
@@ -68,19 +81,19 @@ Using Docker **eliminates concerns** about OS compatibility and library dependen
   - Dev Containers
   - Docker
 
-### 🔹 Installation Steps
+### 🔹 Steps to Access the Dev Container
 1. **Clone the repository**:
    ```bash
-   git clone <repo_url>
+   git clone https://github.com/thinhle96/esbmc.git
    ```
-2. **Start Docker Compose**:
+2. **Run Docker Compose**:
    ```bash
    docker compose up -d
    ```
 3. **Open VS Code and connect to the container**:
-   - Open **Docker** from the left menu.
+   - Select the **Docker** option from the left menu.
    - Right-click on the container -> **Attach Visual Studio Code**.
-   - When VS Code opens, go to **File > Open Folder** and select **`/workspace`**.
+   - When the VS Code window opens, go to **File > Open Folder** and select the **`/workspace`** folder.
 
    ![Docker VS Code](image.png)
 
@@ -96,9 +109,24 @@ Using Docker **eliminates concerns** about OS compatibility and library dependen
    esbmc sample.c --k-induction
    ```
 
----
+## ▶️ Debugging ESBMC
+1. **Create a debug folder**:
+   ```bash
+   cd /workspace
+   git clone https://github.com/esbmc/esbmc.git
+   mkdir debug && cd debug
+   cmake .. -DENABLE_Z3=1 -DCMAKE_BUILD_TYPE=Debug
+   make -j$(nproc)
+   ```
+2. **Create a debug `launch.json` file**:
+   - Open folder: **File -> Open Folder -> /workspace/esbmc**
+   - Create `launch.json`: **Ctrl + Shift + D -> Create launch.json -> Overwrite the content of launch.json**
+3. **Run Debug**:
+   - Select the file, e.g., `/workspace/esbmc/src/esbmc/main.cpp`
+   - Add breakpoints and press `F5`
 
 ## ⚠️ Notes
-- **The `/workspace` directory already contains the code folder**: `esbmc-demo`.
-- **You should write code inside `/workspace`** since it is mounted as a Docker Volume, preventing data loss if the container is removed.
+- The **`/workspace`** directory already contains the `esbmc-demo` code folder.
+- It is **recommended to write code inside `/workspace`** to prevent data loss if the container is deleted, as this directory is mounted with Docker Volumes.
+
 
