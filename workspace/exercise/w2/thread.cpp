@@ -25,7 +25,7 @@ int main() {
     pthread_join(t1, NULL);
     pthread_join(t2, NULL);
 
-    assert(x != y + 5); // Kiểm tra điều kiện x = y + 5 có xảy ra không
+    assert(x != y + 5);
     return 0;
     
 }
