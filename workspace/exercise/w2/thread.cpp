@@ -1,31 +1,34 @@
+#include<assert.h>
 #include <pthread.h>
-#include <assert.h>
 
-int x = 0, y = 0;
-
-void* P1(void* arg) {
-    for (int i = 1; i <= 10; i++) {
-        x = i;
-    }
+int x=0;
+void t1() {
+	x++;
+    assert(x==1);
 }
 
-void* P2(void* arg) {
-    for (int i = 5; i <= 9; i++) {
-        y = i;
-    }
-
+void t2() {
+	x--;
+	assert(x==0);
 }
 
-int main() {
-    pthread_t t1, t2;
+void *thread1(void *arg)
+{
+    t1();
+}
 
-    pthread_create(&t1, NULL, P1, NULL);
-    pthread_create(&t2, NULL, P2, NULL);
+void *thread2(void *arg)
+{
+    t2();
+}
 
-    pthread_join(t1, NULL);
-    pthread_join(t2, NULL);
 
-    assert(x != y + 5);
-    return 0;
-    
+int main(void){
+	pthread_t id1, id2;
+	pthread_create (&id1, NULL, thread1, NULL);
+	pthread_create (&id2, NULL, thread2, NULL);
+	pthread_join(id1, NULL);
+	pthread_join(id2, NULL);
+	// assert(x==1);
+	return 0;
 }
