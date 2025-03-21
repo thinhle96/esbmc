@@ -1,189 +1,145 @@
-#include <bits/stdc++.h>
-#include <sys/ptrace.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/syscall.h>
-#include <unistd.h>
+#include <iostream>
+#include <map>
+#include <set>
+#include <vector>
+
 using namespace std;
 
-// ----------------- Tiện ích ptrace -----------------
-pid_t getThreadId() {
-    return (pid_t) syscall(SYS_gettid);
-}
-bool pauseThread(pid_t tid) {
-    if(ptrace(PTRACE_ATTACH, tid, NULL, NULL) == -1) {
-        cerr << "[pauseThread] PTRACE_ATTACH failed, tid=" << tid
-             << " errno=" << errno << endl;
-        return false;
-    }
-    int status = 0;
-    if(waitpid(tid, &status, 0) == -1) {
-        cerr << "[pauseThread] waitpid failed, tid=" << tid
-             << " errno=" << errno << endl;
-        return false;
-    }
-    return true;
-}
-bool resumeThread(pid_t tid) {
-    if(ptrace(PTRACE_DETACH, tid, NULL, NULL) == -1) {
-        cerr << "[resumeThread] PTRACE_DETACH failed, tid=" << tid
-             << " errno=" << errno << endl;
-        return false;
-    }
-    return true;
-}
+static void t1();
+static void t2();
+static void t3();
 
-// ----------------- Khai báo trước Task --------------
 struct Task {
-    string name;
+    void (*func)();
     int priority;
-    thread th;
-    pid_t tid;
-    atomic<bool> finished;
-    Task(const string &nm, int pri)
-        : name(nm), priority(pri), tid(-1), finished(false) {}
-    void run(function<void()> fn);
+    void run();
 };
 
-//  So sánh priority (cao > thấp)
-struct TaskCompare {
-    bool operator()(Task* a, Task* b) {
-        return a->priority < b->priority;
+map<void(*)(), void(*)()> chain_task;
+set<void(*)()> completed_tasks;
+
+class MyStack {
+    Task* arr;
+    int cap;
+    int topIndex;
+public:
+    MyStack(int c=1000) : cap(c), topIndex(-1) { arr = new Task[cap]; }
+    ~MyStack() { delete[] arr; }
+    bool empty() const { return topIndex < 0; }
+    Task& top() { return arr[topIndex]; }
+    void push(const Task& t) {
+        if(topIndex+1<cap) {
+            topIndex++;
+            arr[topIndex] = t;
+        }
+    }
+    void pop() { if(!empty()) topIndex--; }
+};
+
+class MyMaxHeap {
+    vector<pair<int, Task>> data;
+    void heapifyUp(int idx) {
+        while(idx>0) {
+            int p=(idx-1)/2;
+            if(data[idx].first>data[p].first) {
+                auto temp=data[idx]; data[idx]=data[p]; data[p]=temp;
+                idx=p;
+            } else break;
+        }
+    }
+    void heapifyDown(int idx) {
+        while(true) {
+            int l=2*idx+1, r=2*idx+2, largest=idx;
+            if(l<(int)data.size() && data[l].first>data[largest].first) largest=l;
+            if(r<(int)data.size() && data[r].first>data[largest].first) largest=r;
+            if(largest!=idx) {
+                auto temp=data[idx]; data[idx]=data[largest]; data[largest]=temp;
+                idx=largest;
+            } else break;
+        }
+    }
+public:
+    bool empty() const { return data.empty(); }
+    pair<int,Task> top() { return data[0]; }
+    void push(const pair<int,Task>& val) {
+        data.push_back(val);
+        heapifyUp((int)data.size()-1);
+    }
+    void pop() {
+        if(!data.empty()) {
+            data[0] = data[data.size()-1];
+            data.pop_back();
+            if(!data.empty()) heapifyDown(0);
+        }
     }
 };
 
-// ----------------- Khai báo đầy đủ Scheduler --------------
-struct Scheduler {
-    priority_queue<Task*, vector<Task*>, TaskCompare> taskQueue;
-    unordered_map<string, Task*> tasks;
-    Task* currentTask = nullptr;
-    mutex mtx;
-    void addTask(const string &name, function<void()> fn, int pri);
-    void activateTask(const string &name);
-    void completeCurrentTask();
-    bool hasActiveTask();
-};
+MyStack s;
+MyMaxHeap q;
 
-// ----------------- Triển khai hàm run của Task --------------
-void Task::run(function<void()> fn) {
-    // Lấy TID
-    tid = getThreadId();
-    // Chạy logic
-    fn();
-    finished = true;
-}
+void activate_task(const Task& t);
+void terminate_task();
 
-// ----------------- Triển khai Scheduler ---------------------
-void Scheduler::addTask(const string &name, function<void()> fn, int pri) {
-    Task* t = new Task(name, pri);
-    // Tạo thread => t->run(fn)
-    t->th = thread([t, fn]{
-        t->run(fn);
-    });
-    // detach => cho nó chạy song song
-    t->th.detach();
-    tasks[name] = t;
-    taskQueue.push(t);
-}
-
-void Scheduler::activateTask(const string &name) {
-    lock_guard<mutex> lk(mtx);
-    if(!tasks.count(name)) return;
-    Task* newTask = tasks[name];
-    // Đợi nó có tid
-    while(newTask->tid < 0) {
-        this_thread::sleep_for(1ms);
+void Task::run() {
+    if(chain_task.find(func)!=chain_task.end()) {
+        auto dep=chain_task[func];
+        if(completed_tasks.find(dep)==completed_tasks.end()) {
+            activate_task({dep,priority+1});
+            activate_task({func,priority});
+            return;
+        }
     }
-    // pause 1 lần
-    pauseThread(newTask->tid);
+    func();
+    completed_tasks.insert(func);
+    terminate_task();
+}
 
-    if(!currentTask) {
-        currentTask = newTask;
-        cout << "[Scheduler] Activate " << currentTask->name << endl;
-        resumeThread(currentTask->tid);
+void t1() {
+    cout<<"t1 x++"<<endl;
+    activate_task({t2,3});
+    cout<<"t1 x++ (finish t1)"<<endl;
+}
+void t2() {
+    cout<<"t2 x--"<<endl;
+    activate_task({t3,2});
+    cout<<"t2 x-- (finish t2)"<<endl;
+}
+void t3() {
+    cout<<"t3 x++"<<endl;
+    cout<<"t3 x-- (finish t3)"<<endl;
+}
+
+void activate_task(const Task& t) {
+    if(s.empty() || t.priority>s.top().priority) {
+        s.push(t);
+        s.top().run();
     } else {
-        if(newTask->priority > currentTask->priority) {
-            cout << "Preempting " << currentTask->name 
-                 << " with " << newTask->name << endl;
-            pauseThread(currentTask->tid);
-            taskQueue.push(currentTask);
-            currentTask = newTask;
-            resumeThread(currentTask->tid);
-        } else {
-            taskQueue.push(newTask);
+        q.push({t.priority,t});
+    }
+}
+
+void terminate_task() {
+    if(!s.empty()) {
+        s.pop();
+    }
+    if(!q.empty() && !s.empty()) {
+        auto top_pair=q.top();
+        if(top_pair.first>s.top().priority) {
+            q.pop();
+            s.push(top_pair.second);
+            s.top().run();
         }
     }
 }
 
-void Scheduler::completeCurrentTask() {
-    lock_guard<mutex> lk(mtx);
-    if(currentTask && currentTask->finished) {
-        currentTask = nullptr;
-    }
-    while(!taskQueue.empty()) {
-        Task* top = taskQueue.top();
-        if(top->finished) {
-            taskQueue.pop();
-            continue;
-        }
-        pauseThread(top->tid);
-        currentTask = top;
-        taskQueue.pop();
-        cout << "[Scheduler] Switch to " << currentTask->name << endl;
-        resumeThread(currentTask->tid);
-        break;
-    }
-}
-
-bool Scheduler::hasActiveTask() {
-    lock_guard<mutex> lk(mtx);
-    if(currentTask) return true;
-    auto cp = taskQueue;
-    while(!cp.empty()) {
-        Task* t = cp.top(); cp.pop();
-        if(!t->finished) return true;
-    }
-    return false;
-}
-
-// ----------------- Định nghĩa Scheduler toàn cục -----------
-Scheduler scheduler;
-
-// ----------------- Các hàm task_1, task_2, task_3 -----------
-void task_1() {
-    cout << "t1.x++" << endl;
-    scheduler.activateTask("Task2");
-    cout << "t1.x++" << endl;
-}
-void task_2() {
-    cout << "t2.x--" << endl;
-    scheduler.activateTask("Task3");
-    cout << "t2.x--" << endl;
-}
-void task_3() {
-    cout << "t3.x++" << endl;
-    cout << "t3.x--" << endl;
-}
-
-// ----------------- main() ----------------------------------
 int main(){
-    // Thêm 3 task
-    scheduler.addTask("Task1", task_1, 1);
-    scheduler.addTask("Task2", task_2, 3);
-    scheduler.addTask("Task3", task_3, 2);
-
-    // Kích hoạt Task1
-    scheduler.activateTask("Task1");
-
-    // Vòng lặp
-    while(scheduler.hasActiveTask()) {
-        if(scheduler.currentTask && scheduler.currentTask->finished) {
-            pauseThread(scheduler.currentTask->tid);
-            scheduler.completeCurrentTask();
-        }
-        this_thread::sleep_for(50ms);
+    // chain_task[t1]=t2;
+    // chain_task[t2]=t3;
+    activate_task({t1,1});
+    while(!q.empty()){
+        auto next_pair=q.top(); 
+        q.pop();
+        next_pair.second.run();
     }
-
-    cout << "All tasks completed." << endl;
     return 0;
 }
